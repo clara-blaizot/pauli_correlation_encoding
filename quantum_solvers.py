@@ -1,55 +1,111 @@
-# Build the quantum circuit
-qc = efficient_su2(num_qubits, ["ry", "rz"], reps=2)    # Create a parameterized quantum circuit with 2 repetitions of Ry and Rz gates
+import numpy as np
 
-# Optimisation hardware : on optimise la structure du circuit pour le backend cible
-
-pm = generate_preset_pass_manager(optimization_level=3, backend=backend)  # Generate a pass manager with optimization level 3 for the specified backend
-# un pass manager est un compilateur
-qc = pm.run(qc)   # Optimize the quantum circuit using the pass manager
-
-
-pce = []
-pce.append(
-    [op.apply_layout(qc.layout) for op in pauli_correlation_encoding_x]  
-)
-pce.append(
-    [op.apply_layout(qc.layout) for op in pauli_correlation_encoding_y]
-)
-pce.append(
-    [op.apply_layout(qc.layout) for op in pauli_correlation_encoding_z]
-) 
+from qiskit.circuit.library import EfficientSU2
+from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
+from qiskit_aer import AerSimulator
+from qiskit_aer.primitives import Estimator
+from scipy.optimize import minimize
+from problem_encoding import loss_func_estimator
 
 
-# Run the optimization without Session (for open plan)
-from qiskit_ibm_runtime import Estimator
-estimator = Estimator(backend)  # Use the open plan simulator
-experiment_result = []
+def build_pce_circuit(num_qubits, reps=2):
+    """
+    Crée un circuit variationnel (Ansatz) de type EfficientSU2.
+    Optimisé localement pour un simulateur Aer.
+    """
+    # Utilisation d'un simulateur local gratuit au lieu du backend IBM 
+    backend = AerSimulator()
+    qc = EfficientSU2(num_qubits, ["ry", "rz"], reps=reps, entanglement="linear")
+    
+    # Compilation locale (Pass Manager)
+    pm = generate_preset_pass_manager(optimization_level=3, backend=backend)
+    qc_optimized = pm.run(qc)
 
-def loss_func(x):
-    return loss_func_estimator(
-        x, qc, [pce[0], pce[1], pce[2]], estimator, graph
+    return qc_optimized, backend
+
+
+
+
+def run_pce_optimization(qc, pce_groups, graph, max_iter=10):
+    """
+    Exécute la boucle d'optimisation hybride sur CPU classique.
+    """
+    # Estimator local 
+    estimator = Estimator()
+    
+    # Historique pour suivre l'évolution 
+    history = {"loss": []}
+
+    def loss_wrapper(params):
+        val = loss_func_estimator(params, qc, pce_groups, estimator, graph)
+        history["loss"].append(val)
+        return val
+
+    # Initialisation des paramètres
+    np.random.seed(42)
+    initial_params = np.random.rand(qc.num_parameters)
+    
+    # Optimisation via COBYLA (souvent utilisé en NISQ) 
+    result = minimize(
+        loss_wrapper, 
+        initial_params, 
+        method="COBYLA", 
+        options={"maxiter": max_iter}
     )
-
-np.random.seed(42)
-initial_params = np.random.rand(qc.num_parameters)
-result = minimize(
-    loss_func, initial_params, method="COBYLA", options={"maxiter": 10}
-    )
-print(result)
+    
+    return result, history
 
 
-# Calculate the partitions based on the final expectation values
-# If the expectation value is positive, the node belongs to partition 0 (par0)
-# Otherwise, the node belongs to partition 1 (par1)
 
-par0, par1 = set(), set()
+def get_partitions(expectation_values):
+    """
+    Décode les résultats : xi = sgn(<Pi>).
+    """
+    par0, par1 = set(), set()
+    # On suit l'encodage PCE : positif -> 1, négatif -> -1 
+    for node_idx, val in expectation_values.items():
+        if val >= 0:
+            par0.add(node_idx)
+        else:
+            par1.add(node_idx)
+    return par0, par1
 
-for i in experiment_result[-1]["exp_map"]:
-    if experiment_result[-1]["exp_map"][i] >= 0:
-        par0.add(i)
-    else:
-        par1.add(i)
-print(par0, par1)
 
-cut_size = calc_cut_size(graph, par0, par1)
-print(f"Cut size: {cut_size}")
+
+
+def solve_maxcut_pce(num_qubits, pce_groups, instance, reps=2, max_iter=100):
+    """
+    Pipeline complet : 
+    1. Build circuit -> 2. Optimize -> 3. Get Final <Pi> -> 4. Decode Partitions
+    """
+    # 1. Préparation du circuit et du simulateur [cite: 137]
+    qc, backend = build_pce_circuit(num_qubits, reps=reps)
+    
+    # 2. Boucle d'optimisation hybride
+    result, history = run_pce_optimization(qc, pce_groups, instance, max_iter=max_iter)
+    
+    # 3. Calcul des espérances finales <Pi> avec les meilleurs paramètres trouvés 
+    # On utilise un Estimator local pour la simulation finale
+    estimator = Estimator()
+    final_theta = result.x
+    
+    # On aplatit les groupes PCE pour l'Estimator (X, Y, Z)
+    all_observables = [op for group in pce_groups for op in group]
+    
+    # Calcul des <Pi> sur le simulateur Aer [cite: 106, 145]
+    job = estimator.run([qc] * len(all_observables), all_observables, [final_theta] * len(all_observables))
+    exp_values_list = job.result().values
+    
+    # Mapping {Index du Noeud: Valeur <Pi>} [cite: 62, 97]
+    final_expectations = {i: val for i, val in enumerate(exp_values_list)}
+    
+    # 4. Décodage en partitions binaires (sgn(<Pi>)) [cite: 62, 106]
+    par0, par1 = get_partitions(final_expectations)
+    
+    return {
+        "par0": par0,
+        "par1": par1,
+        "history": history,
+        "result": result,
+        "expectations": final_expectations
+    }
