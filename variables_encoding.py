@@ -58,8 +58,8 @@ def variables_encoding(number_nodes, number_qubits):
     print("List Y:", node_y)
     print("List Z:", node_z)
 
-    hamiltonian = [build_pauli_correlation_encoding("X", node_x, number_qubits),
-                   build_pauli_correlation_encoding("Y", node_y, number_qubits), 
-                   build_pauli_correlation_encoding("Z", node_z, number_qubits)]
+    hamiltonian = (build_pauli_correlation_encoding("X", node_x, number_qubits)
+             + build_pauli_correlation_encoding("Y", node_y, number_qubits)
+             + build_pauli_correlation_encoding("Z", node_z, number_qubits))
     return hamiltonian
 

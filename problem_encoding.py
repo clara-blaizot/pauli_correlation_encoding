@@ -10,18 +10,11 @@ def loss_func_estimator_maxcut(x, ansatz, hamiltonian, estimator, graph, num_qub
     passed through the nonlinear function tanh(alpha * prod_i). The loss function is
     subsequently computed from these transformed values.
     """
-    circuits = [ansatz] * 3
-    observables = [hamiltonian[0], hamiltonian[1], hamiltonian[2]]
-    parameter_values = [x] * 3
-
-    # Appel correct pour Qiskit Aer Estimator
-    job = estimator.run(circuits, observables, parameter_values)
+    n_obs = len(hamiltonian)
+    job = estimator.run([ansatz] * n_obs, hamiltonian, [x] * n_obs)
     result = job.result()
+    node_exp_map = {idx: ev for idx, ev in enumerate(result.values)}
 
-    # calculate the loss function
-    node_exp_map = {}
-    for idx, ev in enumerate(result.values):
-        node_exp_map[idx] = ev
 
     loss = 0
     alpha = num_qubits
@@ -56,19 +49,16 @@ def loss_func_estimator_min_multicut(x, ansatz, hamiltonian, estimator, graph, t
     The loss function includes penalties to ensure that terminal nodes are not cut and that
     the unique path between terminal pairs is severed.
     """
-    job = estimator.run([ansatz]*3, [hamiltonian[0], hamiltonian[1], hamiltonian[2]], [x]*3)
+    n_obs = len(hamiltonian)
+    job = estimator.run([ansatz] * n_obs, hamiltonian, [x] * n_obs)
     result = job.result()
+    node_exp_map = {idx: ev for idx, ev in enumerate(result.values)}
 
     # calculate the paths between terminal pairs
     paths = []
     for s,t in terminal_nodes:
         path = nx.shortest_path(graph, source=s, target=t)
         paths.append(path)
-    
-    # calculate the loss function
-    node_exp_map = {}
-    for idx, ev in enumerate(result.values):
-        node_exp_map[idx] = ev
     
     loss = 0
     alpha = num_qubits
