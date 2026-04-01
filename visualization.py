@@ -1,5 +1,4 @@
 import matplotlib.pyplot as plt
-import numpy as np
 
 def plot_performance_scaling(instance_sizes, classical_values, quantum_values, metric_name="Objectif (Cut Size)", problem_type="Max-Cut"):
     """

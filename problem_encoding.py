@@ -31,7 +31,7 @@ def loss_func_estimator_maxcut(x, ansatz, hamiltonian, estimator, graph, num_qub
         )
 
     regulation_term = 0
-    for i in range(len(graph.nodes())):
+    for i in graph.nodes():
         regulation_term += np.tanh(alpha * node_exp_map[i]) ** 2
     regulation_term = regulation_term / len(graph.nodes())
     regulation_term = regulation_term**2
@@ -91,7 +91,7 @@ def loss_func_estimator_min_multicut(x, ansatz, hamiltonian, estimator, graph, t
     
     # Regulation 
     regulation_term = 0
-    for i in range(len(graph.nodes())):
+    for i in graph.nodes(): 
         regulation_term += np.tanh(alpha * node_exp_map[i]) ** 2
     regulation_term = regulation_term / len(graph.nodes())
     regulation_term = regulation_term**2

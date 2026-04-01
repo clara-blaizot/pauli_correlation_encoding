@@ -15,25 +15,20 @@ def build_pauli_correlation_encoding(pauli, node_list, n, k=2):
     Returns:
         hamiltonian (list): La liste des opérateurs hamiltoniens pour le type de Pauli donné
     """
+    
     pauli_correlation_encoding = []
-    for idx, c in enumerate(combinations(range(n), k)):
-        if idx >= len(node_list):
+    for idx, c in enumerate(combinations(range(n), k)):      # Generate all combinations of qubits for the given k
+        if idx >= len(node_list):      # Only consider combinations up to the length of the node list
             break
-        paulis = ["I"] * n
-        paulis[c[0]], paulis[c[1]] = pauli, pauli
-        pauli_str = "".join(paulis)
-        # Vérification de la validité de la chaîne de Pauli
-        if len(pauli_str) == n and all(x in "IXYZ" for x in pauli_str):
-            pauli_correlation_encoding.append((pauli_str, 1))
-        else:
-            print(f"[Warning] Pauli string incorrect: {pauli_str}")
+        paulis = ["I"] * n          # Initialize all qubits to identity
+        paulis[c[0]], paulis[c[1]] = pauli, pauli    # Set the specified Pauli operator on the selected qubits
+        pauli_correlation_encoding.append(("".join(paulis)[::-1], 1))    # Append the Pauli string to the encoding list
 
     hamiltonian = []
     for pauli, weight in pauli_correlation_encoding:
         hamiltonian.append(SparsePauliOp.from_list([(pauli, weight)]))
-
+    print(hamiltonian)
     return hamiltonian
-
 
 
 def variables_encoding(number_nodes, number_qubits):
@@ -63,8 +58,8 @@ def variables_encoding(number_nodes, number_qubits):
     print("List Y:", node_y)
     print("List Z:", node_z)
 
-    hamiltonian = build_pauli_correlation_encoding("X", node_x, number_qubits) \
-               + build_pauli_correlation_encoding("Y", node_y, number_qubits) \
-               + build_pauli_correlation_encoding("Z", node_z, number_qubits)
+    hamiltonian = [build_pauli_correlation_encoding("X", node_x, number_qubits),
+                   build_pauli_correlation_encoding("Y", node_y, number_qubits), 
+                   build_pauli_correlation_encoding("Z", node_z, number_qubits)]
     return hamiltonian
 

@@ -45,7 +45,7 @@ def run_pce_optimization(qc, pce_groups, graph, num_qubits,max_iter=10):
     np.random.seed(42)
     initial_params = np.random.rand(qc.num_parameters)
     
-    # Optimisation via COBYLA (souvent utilisé en NISQ) 
+    # Optimisation via COBYLA 
     result = minimize(
         loss_wrapper, 
         initial_params, 
