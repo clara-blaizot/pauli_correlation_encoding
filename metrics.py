@@ -50,6 +50,7 @@ def get_objective_value(graph, quantum_result_dict, problem_type):
         raise ValueError(f"Type de problème non supporté : {problem_type}")
 
 
+
 # ==========================================
 # 2. MÉTRIQUES ET STATISTIQUES GLOBALES
 # ==========================================
@@ -62,6 +63,7 @@ def compute_approximation_ratio(quantum_value, classical_value):
         return 0.0 # Sécurité pour éviter la division par zéro
     
     return quantum_value / classical_value
+
 
 def compute_trial_statistics(values_list, problem_type):
     """
@@ -117,13 +119,13 @@ def compare_solvers(graph, classical_objective, quantum_result_dict, problem_typ
     # 1. Calcul de l'objectif quantique via l'aiguilleur
     quantum_objective = get_objective_value(graph, quantum_result_dict, problem_type)
     
-    # 2. Calcul du ratio d'approximation [cite: 152]
+    # 2. Calcul du ratio d'approximation 
     approx_ratio = compute_approximation_ratio(quantum_objective, classical_objective)
     
-    # 3. Extraction des métriques de coût [cite: 143]
+    # 3. Extraction des métriques de coût 
     resources = extract_hybrid_resources(quantum_result_dict, quantum_circuit)
     
-    # Construction du dictionnaire de rapport [cite: 24, 143]
+    # Construction du dictionnaire de rapport 
     report = {
         "problem_type": problem_type,
         "classical_objective": classical_objective,
@@ -134,6 +136,8 @@ def compare_solvers(graph, classical_objective, quantum_result_dict, problem_typ
     }
     
     return report
+
+
 
 
 '''Ce dont il y a besoin en paramètres d'entrées, à mettre dans le notebook main'''

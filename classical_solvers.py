@@ -26,7 +26,7 @@ def classical_solver(instance , problem_type):
         # Pour le Multi-cut, on cherche à minimiser le poids des arêtes supprimées 
         # NetworkX utilise une approximation basée sur les coupes minimales isolantes
         # Note : Cette fonction nécessite souvent des capacités de noeuds (capacities)
-        cut_edges = nx.approximation.minimum_node_cut(instance)
+        cut_edges = nx.minimum_node_cut(instance, s=terminal_s, t=terminal_t)
         cut_size = len(cut_edges)
         print(f"Cut size: {cut_size}")
         print(f"Cut edges: {cut_edges}")

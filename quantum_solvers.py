@@ -6,6 +6,7 @@ from qiskit_aer import AerSimulator
 from qiskit_aer.primitives import Estimator
 from scipy.optimize import minimize
 from problem_encoding import loss_func_estimator_maxcut, loss_func_estimator_min_multicut
+import problem_encoding
 
 
 def build_pce_circuit(num_qubits, reps=2):
@@ -32,6 +33,7 @@ def run_pce_optimization(qc, pce_groups, graph, num_qubits,max_iter=10):
     """
     # Estimator local 
     estimator = Estimator()
+    problem_encoding.experiment_result = []
     
     # Historique pour suivre l'évolution 
     history = {"loss": []}
