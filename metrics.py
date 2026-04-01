@@ -1,52 +1,94 @@
 import numpy as np
 import networkx as nx
 
-def calculate_maxcut_value(graph, par0, par1):
+# ==========================================
+# 1. CALCUL DE L'OBJECTIF SPÉCIFIQUE
+# ==========================================
+
+def calculate_maxcut_value(graph, quantum_result_dict):
     """
-    Calcule la valeur de la coupe (objectif f(x)) pour une partition donnée.
-    Utile car quantum_solvers.py retourne les partitions, mais pas la valeur de la coupe.
+    Calcule l'objectif f(x) pour Max-Cut (à maximiser).
+    L'objectif est la somme des poids des arêtes reliant deux partitions différentes.
     """
+    par0 = quantum_result_dict.get("par0", set())
+    par1 = quantum_result_dict.get("par1", set())
     cut_value = 0
+    
     for u, v in graph.edges():
-        # Si une arête a un sommet dans par0 et l'autre dans par1, elle est coupée
         if (u in par0 and v in par1) or (u in par1 and v in par0):
-            # Prendre en compte le poids si le graphe est pondéré, sinon 1
             weight = graph[u][v].get('weight', 1.0)
             cut_value += weight
+            
     return cut_value
+
+def calculate_min_multicut_value(graph, quantum_result_dict):
+    """
+    Calcule l'objectif f(x) pour Minimal-Multi-Cut (à minimiser).
+    L'objectif est la somme des poids des arêtes qui ont été coupées pour séparer les terminaux.
+    """
+    # On suppose ici que le solveur quantique retourne la liste des arêtes coupées
+    cut_edges = quantum_result_dict.get("cut_edges", [])
+    cut_value = 0
+    
+    for u, v in cut_edges:
+        # On vérifie que l'arête existe bien dans le graphe d'origine par sécurité
+        if graph.has_edge(u, v):
+            weight = graph[u][v].get('weight', 1.0)
+            cut_value += weight
+            
+    return cut_value
+
+def get_objective_value(graph, quantum_result_dict, problem_type):
+    """
+    Aiguilleur : Appelle la bonne fonction mathématique selon le problème.
+    """
+    if problem_type == "Max-Cut":
+        return calculate_maxcut_value(graph, quantum_result_dict)
+    elif problem_type == "Minimal-Multi-Cut":
+        return calculate_min_multicut_value(graph, quantum_result_dict)
+    else:
+        raise ValueError(f"Type de problème non supporté : {problem_type}")
+
+
+# ==========================================
+# 2. MÉTRIQUES ET STATISTIQUES GLOBALES
+# ==========================================
 
 def compute_approximation_ratio(quantum_value, classical_value):
     """
     Calcule le ratio d'approximation ρ(x) = f(x) / f(x*).
-    Si on maximise (Max-Cut), la baseline classique (f(x*)) est au dénominateur.
     """
     if classical_value == 0:
-        return 0.0 # Éviter la division par zéro
+        return 0.0 # Sécurité pour éviter la division par zéro
     
-    # Pour un problème de maximisation, on veut idéalement que ce ratio s'approche de 1
-    rho = quantum_value / classical_value
-    return rho
+    return quantum_value / classical_value
 
-def compute_trial_statistics(values_list):
+def compute_trial_statistics(values_list, problem_type):
     """
-    Prend une liste de valeurs (ex: les tailles de coupes sur N runs quantiques)
-    et retourne les statistiques obligatoires pour les algorithmes stochastiques.
+    Calcule les statistiques sur des essais répétés (obligatoire pour les algos stochastiques).
+    Adapte la notion de "meilleur/pire" selon le type d'optimisation (Min ou Max).
     """
     if not values_list:
         return {}
 
-    return {
+    stats = {
         "mean": np.mean(values_list),
         "std_dev": np.std(values_list),
         "median": np.median(values_list),
-        "best": np.max(values_list),  # np.max car on est sur du Max-Cut
-        "worst": np.min(values_list)
     }
+    
+    if problem_type == "Max-Cut":
+        stats["best"] = np.max(values_list)
+        stats["worst"] = np.min(values_list)
+    elif problem_type == "Minimal-Multi-Cut":
+        stats["best"] = np.min(values_list)
+        stats["worst"] = np.max(values_list)
+        
+    return stats
 
 def extract_hybrid_resources(quantum_result_dict, quantum_circuit=None):
     """
-    Extrait les métriques de ressources de la boucle hybride et du circuit.
-    Prend en entrée le dictionnaire retourné par solve_maxcut_pce.
+    Extrait les métriques de ressources matérielles et logicielles.
     """
     resources = {}
     
@@ -62,27 +104,33 @@ def extract_hybrid_resources(quantum_result_dict, quantum_circuit=None):
         
     return resources
 
-def compare_solvers_maxcut(graph, classical_cut_size, quantum_result_dict): 
+
+# ==========================================
+# 3. FONCTION PRINCIPALE D'ORCHESTRATION
+# ==========================================
+
+def compare_solvers(graph, classical_objective, quantum_result_dict, problem_type, quantum_circuit=None):
     """
-    Fonction utilitaire pour générer un rapport complet comparant un run classique et un run quantique.
+    Génère un rapport comparatif standardisé, peu importe le problème.
+    C'est la fonction à appeler dans main_workflow.ipynb.
     """
-    # 1. Obtenir la valeur de la coupe quantique
-    par0 = quantum_result_dict["par0"]
-    par1 = quantum_result_dict["par1"]
-    quantum_cut_size = calculate_maxcut_value(graph, par0, par1)
+    # 1. Calcul de l'objectif quantique via l'aiguilleur
+    quantum_objective = get_objective_value(graph, quantum_result_dict, problem_type)
     
-    # 2. Calculer l'approximation ratio
-    approx_ratio = compute_approximation_ratio(quantum_cut_size, classical_cut_size)
+    # 2. Calcul du ratio d'approximation [cite: 152]
+    approx_ratio = compute_approximation_ratio(quantum_objective, classical_objective)
     
-    # 3. Extraire les ressources
-    resources = extract_hybrid_resources(quantum_result_dict)
+    # 3. Extraction des métriques de coût [cite: 143]
+    resources = extract_hybrid_resources(quantum_result_dict, quantum_circuit)
     
-    # Construction du rapport
+    # Construction du dictionnaire de rapport [cite: 24, 143]
     report = {
-        "classical_objective": classical_cut_size,
-        "quantum_objective": quantum_cut_size,
+        "problem_type": problem_type,
+        "classical_objective": classical_objective,
+        "quantum_objective": quantum_objective,
         "approximation_ratio": approx_ratio,
-        "optimizer_iterations": resources.get("optimizer_iterations", None)
+        "optimizer_iterations": resources.get("optimizer_iterations", None),
+        "circuit_depth": resources.get("circuit_depth", None)
     }
     
     return report
