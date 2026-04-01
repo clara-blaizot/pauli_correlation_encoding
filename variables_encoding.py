@@ -16,12 +16,17 @@ def build_pauli_correlation_encoding(pauli, node_list, n, k=2):
         hamiltonian (list): La liste des opérateurs hamiltoniens pour le type de Pauli donné
     """
     pauli_correlation_encoding = []
-    for idx, c in enumerate(combinations(range(n), k)):      # Generate all combinations of qubits for the given k
-        if idx >= len(node_list):      # Only consider combinations up to the length of the node list
+    for idx, c in enumerate(combinations(range(n), k)):
+        if idx >= len(node_list):
             break
-        paulis = ["I"] * n          # Initialize all qubits to identity
-        paulis[c[0]], paulis[c[1]] = pauli, pauli    # Set the specified Pauli operator on the selected qubits
-        pauli_correlation_encoding.append(("".join(paulis)[::-1], 1))    # Append the Pauli string to the encoding list
+        paulis = ["I"] * n
+        paulis[c[0]], paulis[c[1]] = pauli, pauli
+        pauli_str = "".join(paulis)
+        # Vérification de la validité de la chaîne de Pauli
+        if len(pauli_str) == n and all(x in "IXYZ" for x in pauli_str):
+            pauli_correlation_encoding.append((pauli_str, 1))
+        else:
+            print(f"[Warning] Pauli string incorrect: {pauli_str}")
 
     hamiltonian = []
     for pauli, weight in pauli_correlation_encoding:
@@ -42,15 +47,24 @@ def variables_encoding(number_nodes, number_qubits):
         list: La liste des opérateurs hamiltoniens pour chaque type de Pauli
     """
 
-    list_size = number_nodes // 3
-    node_x = [i for i in range(list_size)]
-    node_y = [i for i in range(list_size, 2 * list_size)]
-    node_z = [i for i in range(2 * list_size, number_nodes)]
+    # Répartition équitable des nœuds pour couvrir tous les cas
+    node_x = []
+    node_y = []
+    node_z = []
+    for i in range(number_nodes):
+        if i % 3 == 0:
+            node_x.append(i)
+        elif i % 3 == 1:
+            node_y.append(i)
+        else:
+            node_z.append(i)
 
-    print("List 1:", node_x)
-    print("List 2:", node_y)
-    print("List 3:", node_z)
-    
-    hamiltonian = [build_pauli_correlation_encoding("X", node_x, number_qubits), build_pauli_correlation_encoding("Y", node_y, number_qubits), build_pauli_correlation_encoding("Z", node_z, number_qubits)]
+    print("List X:", node_x)
+    print("List Y:", node_y)
+    print("List Z:", node_z)
+
+    hamiltonian = build_pauli_correlation_encoding("X", node_x, number_qubits) \
+               + build_pauli_correlation_encoding("Y", node_y, number_qubits) \
+               + build_pauli_correlation_encoding("Z", node_z, number_qubits)
     return hamiltonian
 

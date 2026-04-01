@@ -5,7 +5,7 @@ from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 from qiskit_aer import AerSimulator
 from qiskit_aer.primitives import Estimator
 from scipy.optimize import minimize
-from problem_encoding import loss_func_estimator
+from problem_encoding import loss_func_estimator_maxcut, loss_func_estimator_min_multicut
 
 
 def build_pce_circuit(num_qubits, reps=2):
@@ -26,7 +26,7 @@ def build_pce_circuit(num_qubits, reps=2):
 
 
 
-def run_pce_optimization(qc, pce_groups, graph, max_iter=10):
+def run_pce_optimization(qc, pce_groups, graph, num_qubits,max_iter=10):
     """
     Exécute la boucle d'optimisation hybride sur CPU classique.
     """
@@ -37,7 +37,7 @@ def run_pce_optimization(qc, pce_groups, graph, max_iter=10):
     history = {"loss": []}
 
     def loss_wrapper(params):
-        val = loss_func_estimator(params, qc, pce_groups, estimator, graph)
+        val = loss_func_estimator_maxcut(params, qc, pce_groups, estimator, graph, num_qubits)
         history["loss"].append(val)
         return val
 
@@ -82,7 +82,7 @@ def solve_maxcut_pce(num_qubits, pce_groups, instance, reps=2, max_iter=100):
     qc, backend = build_pce_circuit(num_qubits, reps=reps)
     
     # 2. Boucle d'optimisation hybride
-    result, history = run_pce_optimization(qc, pce_groups, instance, max_iter=max_iter)
+    result, history = run_pce_optimization(qc, pce_groups, instance, num_qubits,max_iter=max_iter)
     
     # 3. Calcul des espérances finales <Pi> avec les meilleurs paramètres trouvés 
     # On utilise un Estimator local pour la simulation finale
@@ -90,7 +90,7 @@ def solve_maxcut_pce(num_qubits, pce_groups, instance, reps=2, max_iter=100):
     final_theta = result.x
     
     # On aplatit les groupes PCE pour l'Estimator (X, Y, Z)
-    all_observables = [op for group in pce_groups for op in group]
+    all_observables = pce_groups  # pce_groups est déjà une liste plate d'observables
     
     # Calcul des <Pi> sur le simulateur Aer [cite: 106, 145]
     job = estimator.run([qc] * len(all_observables), all_observables, [final_theta] * len(all_observables))

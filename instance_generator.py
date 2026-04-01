@@ -11,7 +11,7 @@ def graph_creation(number_nodes):
     
     """
 
-    graph = rx.undirected_gnp_random_graph(number_nodes, probability_of_edge, seed=42)
+    graph = rx.undirected_gnp_random_graph(number_nodes, 0.5, seed=42)
     mpl_draw(graph)
     plt.show()
     nx_graph = nx.Graph() 

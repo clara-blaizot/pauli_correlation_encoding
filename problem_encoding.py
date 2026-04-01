@@ -10,26 +10,22 @@ def loss_func_estimator_maxcut(x, ansatz, hamiltonian, estimator, graph, num_qub
     passed through the nonlinear function tanh(alpha * prod_i). The loss function is
     subsequently computed from these transformed values.
     """
-    job = estimator.run(
-        [
-            (ansatz, hamiltonian[0], x),
-            (ansatz, hamiltonian[1], x),
-            (ansatz, hamiltonian[2], x),
-        ]
-    )
+    circuits = [ansatz] * 3
+    observables = [hamiltonian[0], hamiltonian[1], hamiltonian[2]]
+    parameter_values = [x] * 3
+
+    # Appel correct pour Qiskit Aer Estimator
+    job = estimator.run(circuits, observables, parameter_values)
     result = job.result()
 
     # calculate the loss function
     node_exp_map = {}
-    idx = 0
-    for r in result:
-        for ev in r.data.evs:
-            node_exp_map[idx] = ev
-            idx += 1
+    for idx, ev in enumerate(result.values):
+        node_exp_map[idx] = ev
 
     loss = 0
     alpha = num_qubits
-    for edge0, edge1 in graph.edge_list(): # graph.edge_list() returns a list of tuples (edge0, edge1) representing the edges of the graph
+    for edge0, edge1 in list(graph.edges):
         loss += np.tanh(alpha * node_exp_map[edge0]) * np.tanh(
             alpha * node_exp_map[edge1]
         )
@@ -50,19 +46,17 @@ def loss_func_estimator_maxcut(x, ansatz, hamiltonian, estimator, graph, num_qub
     experiment_result.append({"loss": loss, "exp_map": node_exp_map}) # append a new dictionary to the experiment_result list, containing the current loss value and the corresponding expectation values for each node in the graph. This allows us to track the progress of the optimization process over time and analyze the results after the optimization is complete.
     return loss
 
+
+
+
+
 def loss_func_estimator_min_multicut(x, ansatz, hamiltonian, estimator, graph, terminal_nodes, num_qubits):
     """
     Similar to loss_func_estimator but adapted for the Restricted Vertex Minimum Multicut problem.
     The loss function includes penalties to ensure that terminal nodes are not cut and that
     the unique path between terminal pairs is severed.
     """
-    job = estimator.run(
-        [
-            (ansatz, hamiltonian[0], x),
-            (ansatz, hamiltonian[1], x),
-            (ansatz, hamiltonian[2], x),
-        ]
-    )
+    job = estimator.run([ansatz]*3, [hamiltonian[0], hamiltonian[1], hamiltonian[2]], [x]*3)
     result = job.result()
 
     # calculate the paths between terminal pairs
@@ -73,16 +67,13 @@ def loss_func_estimator_min_multicut(x, ansatz, hamiltonian, estimator, graph, t
     
     # calculate the loss function
     node_exp_map = {}
-    idx = 0
-    for r in result:
-        for ev in r.data.evs:
-            node_exp_map[idx] = ev 
-            idx += 1
+    for idx, ev in enumerate(result.values):
+        node_exp_map[idx] = ev
     
     loss = 0
     alpha = num_qubits
     # 1er terme
-    for node in graph.node_list():
+    for node in list(graph.nodes):
         loss += (1-np.tanh(alpha * node_exp_map[node]))/2 
         
     # 2e terme
