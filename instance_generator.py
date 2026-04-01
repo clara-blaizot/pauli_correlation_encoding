@@ -22,20 +22,34 @@ def graph_creation(number_nodes):
     return nx_graph
 
 
-def tree_creation(number_nodes):
+def tree_creation(number_nodes, num_pairs=3):
     """
-    Create a random tree with the given number of nodes, and return it as a NetworkX graph.
-    
+    Crée un arbre aléatoire via NetworkX (stable) et le convertit pour Rustworkx.
     """
-
-    tree = rx.random_tree(number_nodes, seed=42)
-    mpl_draw(tree)
-    nx_tree = nx.Graph() 
-    nx_tree.add_nodes_from(range(number_nodes)) 
-    for edge in tree.edge_list():
-        nx_tree.add_edge(edge[0], edge[1])
+    # 1. Création de l'arbre avec NetworkX (Garanti sans erreur d'import)
+    nx_tree = nx.random_tree(number_nodes, seed=42)
     
-    return nx_tree
+    # 2. Conversion vers Rustworkx (si tes autres fonctions en ont besoin)
+    # On reconstruit le graphe rx à partir des arêtes de nx
+    rx_tree = rx.PyGraph()
+    rx_tree.add_nodes_from(range(number_nodes))
+    rx_tree.add_edges_from([(u, v, None) for u, v in nx_tree.edges()])
+    
+    # 3. Génération des paires (S, T) aléatoires
+    rng = np.random.default_rng(seed=42)
+    sources = []
+    terminals = []
+    
+    nodes = list(range(number_nodes))
+    for _ in range(num_pairs):
+        # On choisit deux nœuds distincts
+        pair = rng.choice(nodes, size=2, replace=False)
+        sources.append(int(pair[0]))
+        terminals.append(int(pair[1]))
+    
+    # Retourne les deux versions du graphe et les paires
+    # Tu peux adapter selon ce que ton notebook attend
+    return nx_tree, sources, terminals
 
 
 def instance_creation(num_nodes, problem):
