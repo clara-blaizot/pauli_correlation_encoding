@@ -82,6 +82,7 @@ def solve_maxcut_pce(num_qubits, pce_groups, instance, reps=2, max_iter=100):
     """
     # 1. Préparation du circuit et du simulateur [cite: 137]
     qc, backend = build_pce_circuit(num_qubits, reps=reps)
+    problem_encoding.experiment_result = []
     
     # 2. Boucle d'optimisation hybride
     result, history = run_pce_optimization(qc, pce_groups, instance, num_qubits,max_iter=max_iter)
