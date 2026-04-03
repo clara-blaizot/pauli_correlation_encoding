@@ -83,3 +83,45 @@ def bit_swap_search(exp_map, graph):
             bits[i] = 1 - bits[i]
 
     return current_cut, bits, par0, par1
+
+
+def bit_swap_mis(exp_map, graph):
+    """
+    Post-processing pour le Maximum Independent Set (MIS).
+    1. Décodage des espérances quantiques
+    2. Réparation (suppression des conflits)
+    3. Expansion gloutonne (Recherche locale : bit-flip 0 -> 1 si possible)
+    """
+    # 1. Décodage (valeur négative -> noeud sélectionné dans le PCE)
+    proposed_set = set()
+    for node_idx, val in exp_map.items():
+        if val < 0:
+            proposed_set.add(node_idx)
+            
+    # 2. Réparation des conflits
+    valid_set = set()
+    for node in proposed_set:
+        has_conflict = False
+        for neighbor in graph.neighbors(node):
+            if neighbor in valid_set:
+                has_conflict = True
+                break
+        if not has_conflict:
+            valid_set.add(node)
+            
+    # 3. Bit-flip / Expansion (Recherche locale)
+    # On essaie d'ajouter des noeuds qui n'ont pas été sélectionnés
+    # mais qui n'ont aucun conflit avec le set valide actuel.
+    for node in graph.nodes():
+        if node not in valid_set:
+            has_conflict = False
+            for neighbor in graph.neighbors(node):
+                if neighbor in valid_set:
+                    has_conflict = True
+                    break
+            # Si aucun voisin n'est dans le set, on peut le flipper à 1 !
+            if not has_conflict:
+                valid_set.add(node)
+                
+    best_size = len(valid_set)
+    return best_size, valid_set
