@@ -22,15 +22,12 @@ def classical_solver(instance , problem_type):
         print(f"Partition 2: {partition[1]}")
         return curr_cut_size, partition
 
-    elif problem_type == "Minimal-Multi-Cut":
-        # Pour le Multi-cut, on cherche à minimiser le poids des arêtes supprimées 
-        # NetworkX utilise une approximation basée sur les coupes minimales isolantes
-        # Note : Cette fonction nécessite souvent des capacités de noeuds (capacities)
-        cut_edges = nx.minimum_node_cut(instance, s=terminal_s, t=terminal_t)
-        cut_size = len(cut_edges)
-        print(f"Cut size: {cut_size}")
-        print(f"Cut edges: {cut_edges}")
-        return cut_size, cut_edges
+    elif problem_type == "Maximal-Independent-Set":
+        # Pour le problème du Maximum Independent Set, on utilise une heuristique de recherche locale
+        # Note : NetworkX n'a pas de fonction prête pour ce problème, donc on implémente une heuristique simple
+        independent_set = nx.approximation.maximum_independent_set(instance, seed=1)
+        print(f"Independent set: {independent_set}")
+        return len(independent_set), independent_set
 
     else:
         raise ValueError("Type de problème non supporté. Choisissez 'Max-cut' ou 'Minimal-Multi-Cut'.")
