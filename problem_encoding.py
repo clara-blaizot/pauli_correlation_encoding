@@ -58,11 +58,8 @@ def loss_func_estimator_mis(x, ansatz, hamiltonian, estimator, graph, num_qubits
 
     # Récupération des espérances
     node_exp_map = {}
-    idx = 0
-    for r in result:
-        for ev in r.data.evs:
-            node_exp_map[idx] = ev
-            idx += 1
+    for idx, ev in enumerate(result.values):
+        node_exp_map[idx] = ev
 
     loss = 0
     alpha = num_qubits
@@ -76,7 +73,7 @@ def loss_func_estimator_mis(x, ansatz, hamiltonian, estimator, graph, num_qubits
         loss -= x_tilde(node_exp_map[node])
         
     # 2. Terme de pénalité (On pénalise si deux sommets adjacents sont sélectionnés)
-    P = 2.0  # Le poids de la pénalité doit être strict (> 1)
+    P = 1.15   # Le poids de la pénalité doit être strict (> 1)
     for u, v in graph.edges():
         loss += P * (x_tilde(node_exp_map[u]) * x_tilde(node_exp_map[v]))
         

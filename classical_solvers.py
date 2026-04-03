@@ -10,7 +10,7 @@ def classical_solver(instance , problem_type):
         
     Returns:
         Si Max-cut : (cut_size, partition)
-        Si Minimal-Multi-Cut : (cut_size, cut_edges)
+        Si MIS : (independent_set_size, independent_set)
     """
     
     if problem_type == "Max-Cut":
@@ -22,12 +22,12 @@ def classical_solver(instance , problem_type):
         print(f"Partition 2: {partition[1]}")
         return curr_cut_size, partition
 
-    elif problem_type == "Maximal-Independent-Set":
+    elif problem_type == "MIS":
         # Pour le problème du Maximum Independent Set, on utilise une heuristique de recherche locale
         # Note : NetworkX n'a pas de fonction prête pour ce problème, donc on implémente une heuristique simple
-        independent_set = nx.approximation.maximum_independent_set(instance, seed=1)
+        independent_set = nx.approximation.maximum_independent_set(instance)
         print(f"Independent set: {independent_set}")
         return len(independent_set), independent_set
 
     else:
-        raise ValueError("Type de problème non supporté. Choisissez 'Max-cut' ou 'Minimal-Multi-Cut'.")
+        raise ValueError("Type de problème non supporté. Choisissez 'Max-cut' ou 'MIS'.")

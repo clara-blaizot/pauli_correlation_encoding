@@ -5,8 +5,8 @@ from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 from qiskit_aer import AerSimulator
 from qiskit_aer.primitives import Estimator
 from scipy.optimize import minimize
-from problem_encoding import loss_func_estimator_maxcut, loss_func_estimator_min_multicut
 import problem_encoding
+from problem_encoding import loss_func_estimator_maxcut, loss_func_estimator_mis
 
 
 def build_pce_circuit(num_qubits, reps=2):
@@ -14,40 +14,39 @@ def build_pce_circuit(num_qubits, reps=2):
     Crée un circuit variationnel (Ansatz) de type EfficientSU2.
     Optimisé localement pour un simulateur Aer.
     """
-    # Utilisation d'un simulateur local gratuit au lieu du backend IBM 
     backend = AerSimulator()
     qc = EfficientSU2(num_qubits, ["ry", "rz"], reps=reps, entanglement="linear")
     
-    # Compilation locale (Pass Manager)
     pm = generate_preset_pass_manager(optimization_level=3, backend=backend)
     qc_optimized = pm.run(qc)
 
     return qc_optimized, backend
 
 
-
-
-def run_pce_optimization(qc, pce_groups, graph, num_qubits,max_iter=10):
+def run_pce_optimization(qc, pce_groups, graph, num_qubits, problem_type="Max-Cut", max_iter=10):
     """
     Exécute la boucle d'optimisation hybride sur CPU classique.
+    Aiguille vers la bonne Loss selon le problème.
     """
-    # Estimator local 
     estimator = Estimator()
     problem_encoding.experiment_result = []
-    
-    # Historique pour suivre l'évolution 
     history = {"loss": []}
 
+    # 2. Aiguilleur de fonction de coût
     def loss_wrapper(params):
-        val = loss_func_estimator_maxcut(params, qc, pce_groups, estimator, graph, num_qubits)
+        if problem_type == "Max-Cut":
+            val = loss_func_estimator_maxcut(params, qc, pce_groups, estimator, graph, num_qubits)
+        elif problem_type == "MIS":
+            val = loss_func_estimator_mis(params, qc, pce_groups, estimator, graph, num_qubits)
+        else:
+            raise ValueError(f"Type de problème non supporté: {problem_type}")
+            
         history["loss"].append(val)
         return val
 
-    # Initialisation des paramètres
     np.random.seed(42)
     initial_params = np.random.rand(qc.num_parameters)
     
-    # Optimisation via COBYLA 
     result = minimize(
         loss_wrapper, 
         initial_params, 
@@ -58,13 +57,9 @@ def run_pce_optimization(qc, pce_groups, graph, num_qubits,max_iter=10):
     return result, history
 
 
-
 def get_partitions(expectation_values):
-    """
-    Décode les résultats : xi = sgn(<Pi>).
-    """
+    """Décode les résultats pour Max-Cut : xi = sgn(<Pi>)."""
     par0, par1 = set(), set()
-    # On suit l'encodage PCE : positif -> 1, négatif -> -1 
     for node_idx, val in expectation_values.items():
         if val >= 0:
             par0.add(node_idx)
@@ -72,42 +67,64 @@ def get_partitions(expectation_values):
             par1.add(node_idx)
     return par0, par1
 
-
+# 3. Fonction de décodage spécifique au MIS
+def get_independent_set(expectation_values):
+    """
+    Décode les résultats pour le MIS.
+    Dans le PCE, une espérance négative donne un x_tilde proche de 1 (nœud sélectionné).
+    """
+    independent_set = set()
+    for node_idx, val in expectation_values.items():
+        if val < 0:
+            independent_set.add(node_idx)
+    return independent_set
 
 
 def solve_maxcut_pce(num_qubits, pce_groups, instance, reps=2, max_iter=100):
-    """
-    Pipeline complet : 
-    1. Build circuit -> 2. Optimize -> 3. Get Final <Pi> -> 4. Decode Partitions
-    """
-    # 1. Préparation du circuit et du simulateur [cite: 137]
+    """Pipeline complet pour Max-Cut"""
     qc, backend = build_pce_circuit(num_qubits, reps=reps)
-    problem_encoding.experiment_result = []
     
-    # 2. Boucle d'optimisation hybride
-    result, history = run_pce_optimization(qc, pce_groups, instance, num_qubits,max_iter=max_iter)
+    result, history = run_pce_optimization(qc, pce_groups, instance, num_qubits, problem_type="Max-Cut", max_iter=max_iter)
     
-    # 3. Calcul des espérances finales <Pi> avec les meilleurs paramètres trouvés 
-    # On utilise un Estimator local pour la simulation finale
     estimator = Estimator()
     final_theta = result.x
+    all_observables = pce_groups  
     
-    # On aplatit les groupes PCE pour l'Estimator (X, Y, Z)
-    all_observables = pce_groups  # pce_groups est déjà une liste plate d'observables
-    
-    # Calcul des <Pi> sur le simulateur Aer [cite: 106, 145]
     job = estimator.run([qc] * len(all_observables), all_observables, [final_theta] * len(all_observables))
     exp_values_list = job.result().values
     
-    # Mapping {Index du Noeud: Valeur <Pi>} [cite: 62, 97]
     final_expectations = {i: val for i, val in enumerate(exp_values_list)}
-    
-    # 4. Décodage en partitions binaires (sgn(<Pi>)) [cite: 62, 106]
     par0, par1 = get_partitions(final_expectations)
     
     return {
         "par0": par0,
         "par1": par1,
+        "history": history,
+        "result": result,
+        "expectations": final_expectations
+    }
+
+# 4. Pipeline complet pour le MIS
+def solve_mis_pce(num_qubits, pce_groups, instance, reps=2, max_iter=100):
+    """Pipeline complet pour le Maximum Independent Set (MIS)"""
+    qc, backend = build_pce_circuit(num_qubits, reps=reps)
+    
+    result, history = run_pce_optimization(qc, pce_groups, instance, num_qubits, problem_type="MIS", max_iter=max_iter)
+    
+    estimator = Estimator()
+    final_theta = result.x
+    all_observables = pce_groups  
+    
+    job = estimator.run([qc] * len(all_observables), all_observables, [final_theta] * len(all_observables))
+    exp_values_list = job.result().values
+    
+    final_expectations = {i: val for i, val in enumerate(exp_values_list)}
+    
+    # Décodage MIS
+    indep_set = get_independent_set(final_expectations)
+    
+    return {
+        "independent_set": indep_set,
         "history": history,
         "result": result,
         "expectations": final_expectations
